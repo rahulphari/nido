@@ -3,415 +3,682 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mix Bag Productivity Dashboard</title>
+    <title>NIDO Sorter | Analytics Dashboard</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- SheetJS (XLSX) for Excel parsing and writing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(-45deg, #120c29, #0f172a, #2c1a4d, #1e3a8a);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
-            color: #e5e7eb;
-        }
-
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .card {
-            background-color: rgba(31, 41, 55, 0.5);
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
+        .gradient-text {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        /* Custom Scrollbar for Table */
+        .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        .card:hover {
-            border-color: rgba(167, 139, 250, 0.5);
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-        }
+        .drag-active { border-color: #3b82f6 !important; background-color: #eff6ff !important; }
 
-        .chart-container {
-            position: relative;
-            margin: auto;
-            height: 40vh;
-            width: 100%;
+        /* Animations */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-        
-        .kpi-icon {
-            width: 48px;
-            height: 48px;
-            stroke-width: 1.5;
-        }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1f2937; }
-        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #6366f1; }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    <div class="max-w-7xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Mix Bag Productivity Dashboard</h1>
-            <p class="text-gray-400 mt-2 text-lg">Your central hub for real-time operational intelligence.</p>
-        </header>
+<body class="text-slate-800 relative">
 
-        <!-- Upload Section -->
-        <div id="uploadSection" class="card max-w-lg mx-auto p-8 rounded-xl shadow-2xl text-center">
-            <h2 class="text-2xl font-bold mb-4 text-indigo-300">Upload Your Report</h2>
-            <p class="text-gray-400 mb-6">Select your XLSX or CSV file to begin analysis.</p>
-            <input type="file" id="fileInput" accept=".csv,.xlsx" class="block w-full text-sm text-gray-400 file:mr-4 file:py-3 file:px-5 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer transition"/>
-            <button id="generateBtn" class="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
-                Generate Dashboard
-            </button>
-            <div id="loadingIndicator" class="hidden mt-4">
-                <p class="text-indigo-400 animate-pulse font-semibold">Brewing insights, please wait...</p>
-            </div>
-        </div>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-        <!-- Dashboard Section -->
-        <div id="dashboard" class="hidden">
-            <!-- KPIs -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="card p-6 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div class="bg-blue-500/20 p-3 rounded-full"><svg class="kpi-icon text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg></div>
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-400 uppercase">Total Parcels</h3>
-                        <p id="totalParcels" class="text-3xl font-bold text-white">0</p>
-                    </div>
-                </div>
-                <div class="card p-6 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div class="bg-red-500/20 p-3 rounded-full"><svg class="kpi-icon text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg></div>
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-400 uppercase">Rejection Rate</h3>
-                        <p id="rejectionRate" class="text-3xl font-bold text-red-400">0%</p>
-                    </div>
-                </div>
-                <div class="card p-6 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div class="bg-green-500/20 p-3 rounded-full"><svg class="kpi-icon text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-400 uppercase">Most Productive Hour</h3>
-                        <p id="busiestHour" class="text-3xl font-bold text-white">N/A</p>
-                    </div>
-                </div>
-                <div class="card p-6 rounded-xl shadow-lg flex items-center space-x-4">
-                    <div class="bg-purple-500/20 p-3 rounded-full"><svg class="kpi-icon text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.928A3 3 0 017.5 12.5a3 3 0 013-3m3 3a3 3 0 00-3-3a3 3 0 00-3 3m4.5 3.084A9.094 9.094 0 0112 18.72a9.094 9.094 0 01-3.741-.479m5.441-2.928a3 3 0 00-5.441 2.928" /></svg></div>
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-400 uppercase">Top Client</h3>
-                        <p id="topClient" class="text-3xl font-bold text-white truncate">N/A</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Summary Report & Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                <div class="lg:col-span-2 card p-6 rounded-xl shadow-lg">
-                    <h2 class="text-xl font-semibold mb-4 text-white">Hourly Summary</h2>
-                    <div class="overflow-auto max-h-[85vh]">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-800/50 text-indigo-300 uppercase sticky top-0">
-                                <tr>
-                                    <th class="p-3">Month</th>
-                                    <th class="p-3">Day</th>
-                                    <th class="p-3">Time</th>
-                                    <th class="p-3 text-center">FL1</th>
-                                    <th class="p-3 text-center">FL2</th>
-                                    <th class="p-3 text-center">HHD</th>
-                                    <th class="p-3 text-center">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody id="summaryTableBody" class="divide-y divide-gray-700"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="lg:col-span-3 space-y-6">
-                    <div class="card p-6 rounded-xl shadow-lg">
-                        <h2 class="text-xl font-semibold mb-4 text-white">Hourly Throughput</h2>
-                        <div class="chart-container"><canvas id="hourlyThroughputChart"></canvas></div>
-                    </div>
-                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="card p-6 rounded-xl shadow-lg">
-                            <h2 class="text-xl font-semibold mb-4 text-white">Feedlane Contribution</h2>
-                            <div class="chart-container"><canvas id="feedlaneChart"></canvas></div>
-                        </div>
-                        <div class="card p-6 rounded-xl shadow-lg">
-                            <h2 class="text-xl font-semibold mb-4 text-white">Rejection Reasons</h2>
-                            <div class="chart-container"><canvas id="rejectionChart"></canvas></div>
-                        </div>
-                    </div>
-                    <div class="card p-6 rounded-xl shadow-lg">
-                        <h2 class="text-xl font-semibold mb-4 text-white">Top 10 Clients by Volume</h2>
-                        <div class="chart-container"><canvas id="clientChart"></canvas></div>
-                    </div>
-                </div>
-            </div>
-             <div class="text-center mt-8">
-                 <button id="resetBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300 ease-in-out">
-                    Analyze New File
-                </button>
-            </div>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 hidden flex items-center justify-center transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 flex flex-col items-center text-center max-w-sm mx-4">
+            <div class="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+            <h3 class="text-lg font-bold text-slate-800">Processing File...</h3>
+            <p id="loading-text" class="text-slate-500 text-sm mt-2">Parsing headers and analyzing data points.</p>
         </div>
     </div>
 
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-600 p-2 rounded-lg text-white">
+                        <i data-lucide="package-search" class="w-6 h-6"></i>
+                    </div>
+                    <span class="font-bold text-xl tracking-tight">NIDO<span class="text-blue-600">Analytics</span></span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="loadDemoData()" class="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors">
+                        Load Demo Data
+                    </button>
+                    <div class="text-xs text-slate-400 font-mono bg-slate-100 px-2 py-1 rounded">v1.7.0 (Mode View)</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- Upload Section -->
+        <div id="upload-section" class="mb-10 transition-all duration-300">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-bold mb-2">Upload Primary Report</h1>
+                <p class="text-slate-500">Upload your Excel or CSV file. Auto-detects 'Is Rejected' status.</p>
+            </div>
+            
+            <div id="drop-zone" class="relative group border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center hover:border-blue-400 hover:bg-slate-50 transition-all cursor-pointer bg-white">
+                <input type="file" id="fileInput" accept=".csv, .xls, .xlsx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                <div class="flex flex-col items-center justify-center gap-4">
+                    <div class="bg-blue-50 text-blue-600 p-4 rounded-full group-hover:scale-110 transition-transform">
+                        <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                    </div>
+                    <div>
+                        <p class="text-lg font-semibold text-slate-700">Click to upload or drag and drop</p>
+                        <p class="text-sm text-slate-400 mt-1">Accepts Excel (.xls, .xlsx) & CSV files</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visible Status Text -->
+            <div id="upload-status" class="mt-4 text-center text-sm font-medium hidden"></div>
+        </div>
+
+        <!-- Dashboard Content (Hidden initially) -->
+        <div id="dashboard" class="hidden space-y-8 animate-fade-in">
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Total Volume -->
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between relative overflow-hidden">
+                    <div class="relative z-10">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Scans</p>
+                        <h3 id="total-scans" class="text-3xl font-bold mt-1 text-slate-800">0</h3>
+                    </div>
+                    <div class="text-blue-500 bg-blue-50 p-3 rounded-lg">
+                        <i data-lucide="boxes" class="w-6 h-6"></i>
+                    </div>
+                    <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-blue-300"></div>
+                </div>
+
+                <!-- Golden Hour -->
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between relative overflow-hidden">
+                    <div class="relative z-10">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Golden Hour</p>
+                        <h3 id="peak-hour-time" class="text-xl font-bold mt-1 text-slate-800">--:--</h3>
+                        <p id="peak-hour-vol" class="text-xs text-green-600 font-semibold mt-1">0 shipments</p>
+                    </div>
+                    <div class="text-amber-500 bg-amber-50 p-3 rounded-lg">
+                        <i data-lucide="trophy" class="w-6 h-6"></i>
+                    </div>
+                    <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-yellow-300"></div>
+                </div>
+
+                <!-- Mode Rate/Hr (Replaced Top Lane) -->
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between relative overflow-hidden">
+                    <div class="relative z-10">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Rate Per Hour (Mode)</p>
+                        <h3 id="mode-rate" class="text-3xl font-bold mt-1 text-slate-800">--</h3>
+                    </div>
+                    <div class="text-purple-500 bg-purple-50 p-3 rounded-lg">
+                        <i data-lucide="bar-chart-2" class="w-6 h-6"></i>
+                    </div>
+                    <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-purple-300"></div>
+                </div>
+
+                <!-- Rejection Summary -->
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between relative overflow-hidden">
+                    <div class="relative z-10">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Rejected</p>
+                        <h3 id="total-rejected" class="text-3xl font-bold mt-1 text-red-600">0</h3>
+                    </div>
+                    <div class="text-red-500 bg-red-50 p-3 rounded-lg">
+                        <i data-lucide="alert-octagon" class="w-6 h-6"></i>
+                    </div>
+                    <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-red-300"></div>
+                </div>
+            </div>
+
+            <!-- Charts Section (Modified: Full Width, No Feedlane Chart) -->
+            <div class="grid grid-cols-1">
+                <div class="glass-panel p-6 rounded-xl w-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-lg text-slate-700">Productivity Timeline</h3>
+                        <span class="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">Active Hours Only</span>
+                    </div>
+                    <div class="h-64 w-full">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+                <!-- Removed Feedlane Chart Section -->
+            </div>
+
+            <!-- Detailed Table -->
+            <div class="glass-panel rounded-xl overflow-hidden shadow-lg">
+                <div class="px-6 py-4 border-b border-slate-100 bg-white flex justify-between items-center">
+                    <h3 class="font-bold text-lg text-slate-700">Detailed Sorter Data</h3>
+                    <button onclick="exportReportToExcel()" class="flex items-center gap-2 text-sm text-green-700 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-lg font-medium border border-green-200 transition-colors">
+                        <i data-lucide="sheet" class="w-4 h-4"></i> Export Excel (Multi-Sheet)
+                    </button>
+                </div>
+                <div class="overflow-x-auto custom-scroll max-h-[600px]">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-50 sticky top-0 z-20 shadow-sm">
+                            <tr>
+                                <th rowspan="2" class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">Date</th>
+                                <th rowspan="2" class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 w-48">Hour Interval</th>
+                                <th colspan="3" class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 text-center bg-blue-50/50">Feedlanes <span class="normal-case font-normal text-slate-400 text-[10px]">(Red = Rejected)</span></th>
+                                <th rowspan="2" class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 text-right bg-indigo-50/30 text-indigo-700">NIDO Scanned<br><span class="text-[10px] font-normal">(FL1+FL2)</span></th>
+                                <th rowspan="2" class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 text-right">Total</th>
+                            </tr>
+                            <tr>
+                                <th class="p-3 text-xs font-semibold text-slate-600 border-b border-slate-200 bg-blue-50/30 text-center">FL1</th>
+                                <th class="p-3 text-xs font-semibold text-slate-600 border-b border-slate-200 bg-blue-50/30 text-center">FL2</th>
+                                <th class="p-3 text-xs font-semibold text-slate-600 border-b border-slate-200 bg-blue-50/30 text-center">HHD</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-100 bg-white">
+                            <!-- Rows generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
     <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Constants
+        const FEEDLANES = ['FL1', 'FL2', 'HHD'];
+        let chartInstances = {};
+        
+        // Global variables to hold processed data for export
+        let globalProcessedData = null;
+        let globalSortedDates = null;
+
+        // UI Helpers
+        function showLoading(message = "Processing...") {
+            document.getElementById('loading-text').innerText = message;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        function showToast(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 
+                          type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-blue-50 border-blue-200 text-blue-800';
+            
+            const icon = type === 'error' ? 'alert-circle' : type === 'success' ? 'check-circle' : 'info';
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg transform transition-all duration-300 translate-x-full ${bgClass} pointer-events-auto`;
+            toast.innerHTML = `
+                <i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i>
+                <span class="text-sm font-medium">${message}</span>
+            `;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-full');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        function updateStatus(message, isError = false) {
+            const el = document.getElementById('upload-status');
+            el.innerText = message;
+            el.className = `mt-4 text-center text-sm font-medium ${isError ? 'text-red-600' : 'text-blue-600'} animate-pulse`;
+            el.classList.remove('hidden');
+        }
+
+        // Drag & Drop Logic
+        const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('fileInput');
-        const generateBtn = document.getElementById('generateBtn');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const uploadSection = document.getElementById('uploadSection');
-        const dashboard = document.getElementById('dashboard');
-        const resetBtn = document.getElementById('resetBtn');
 
-        let charts = {};
-
-        fileInput.addEventListener('change', () => { generateBtn.disabled = fileInput.files.length === 0; });
-
-        resetBtn.addEventListener('click', () => {
-            dashboard.classList.add('hidden');
-            uploadSection.classList.remove('hidden');
-            fileInput.value = '';
-            generateBtn.disabled = true;
-            Object.values(charts).forEach(chart => chart.destroy());
-            charts = {};
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
         });
 
-        generateBtn.addEventListener('click', () => {
-            const file = fileInput.files[0];
-            if (!file) { return; }
-            loadingIndicator.classList.remove('hidden');
-            generateBtn.disabled = true;
-            
-            const showDashboard = (data) => {
-                processData(data);
-                loadingIndicator.classList.add('hidden');
-                uploadSection.classList.add('hidden');
-                dashboard.classList.remove('hidden');
-            };
-            
-            const handleError = (error) => {
-                 console.error("Error processing file:", error);
-                 alert(`Error: ${error.message}`);
-                 loadingIndicator.classList.add('hidden');
-                 generateBtn.disabled = false;
-            };
-
-            if (file.name.endsWith('.xlsx')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        let jsonData = null;
-                        let targetSheetName = null;
-                        const requiredHeaders = ['inscan time', 'feedlane', 'is rejected'];
-                        for (const sheetName of workbook.SheetNames) {
-                            const worksheet = workbook.Sheets[sheetName];
-                            const headerRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
-                            if (headerRow && headerRow.length > 0) {
-                                const lowerCaseHeaders = headerRow.map(h => String(h).trim().toLowerCase());
-                                if (requiredHeaders.every(rh => lowerCaseHeaders.includes(rh))) {
-                                    targetSheetName = sheetName;
-                                    break;
-                                }
-                            }
-                        }
-                        if (targetSheetName) {
-                            const worksheet = workbook.Sheets[targetSheetName];
-                            jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'yyyy-mm-dd hh:mm:ss' });
-                            showDashboard(jsonData);
-                        } else {
-                            throw new Error("Could not find a sheet with the required columns (e.g., 'Inscan Time', 'Feedlane'). Please check the file.");
-                        }
-                    } catch (error) { handleError(error); }
-                };
-                reader.readAsArrayBuffer(file);
-            } else if (file.name.endsWith('.csv')) {
-                Papa.parse(file, {
-                    header: true, skipEmptyLines: true,
-                    complete: (results) => showDashboard(results.data),
-                    error: (parseError) => handleError(new Error(parseError.message))
-                });
-            } else {
-                 alert("Unsupported file type. Please upload a .xlsx or .csv file.");
-                 loadingIndicator.classList.add('hidden');
-                 generateBtn.disabled = false;
-            }
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-active'), false);
         });
 
-        function findColumnKey(keys, name) { return keys.find(key => key.trim().toLowerCase() === name.toLowerCase()); }
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-active'), false);
+        });
 
-        function processData(data) {
-            if (!data || data.length === 0) {
-                 alert("The uploaded file appears to be empty or could not be read.");
-                 resetBtn.click();
-                 return;
-            }
-            
-            const keyMap = {
-                inscanTime: findColumnKey(Object.keys(data[0]), 'Inscan Time'), isRejected: findColumnKey(Object.keys(data[0]), 'Is Rejected'),
-                reason: findColumnKey(Object.keys(data[0]), 'Reason If Rejected'), feedlane: findColumnKey(Object.keys(data[0]), 'Feedlane'),
-                client: findColumnKey(Object.keys(data[0]), 'Client'),
-            };
+        dropZone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files), false);
 
-            if (!keyMap.inscanTime) { alert("Could not find the 'Inscan Time' column."); resetBtn.click(); return; }
-            
-            const validData = data.map(row => {
-                const dateValue = row[keyMap.inscanTime];
-                if (!dateValue) return null;
-                const inscanDate = new Date(dateValue);
-                if (isNaN(inscanDate.getTime())) return null;
-                row.InscanTime = inscanDate;
-                row.Hour = inscanDate.getHours();
-                return row;
-            }).filter(Boolean);
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            handleFiles(dt.files);
+        }
 
-            if (validData.length === 0) { alert("No valid date entries found in 'Inscan Time' column."); resetBtn.click(); return; }
-            
-            const totalParcels = validData.length;
-            const rejectedParcels = validData.filter(r => r[keyMap.isRejected] && r[keyMap.isRejected].toString().trim().toLowerCase() === 'rejected').length;
-            const rejectionRate = totalParcels > 0 ? (rejectedParcels / totalParcels * 100).toFixed(2) : 0;
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                const fileName = file.name.toLowerCase();
 
-            const hourlyCounts = validData.reduce((acc, row) => { acc[row.Hour] = (acc[row.Hour] || 0) + 1; return acc; }, {});
-            const busiestHourEntry = Object.entries(hourlyCounts).sort(([, a], [, b]) => b - a)[0];
-            
-            let busiestHour = 'N/A';
-            if (busiestHourEntry) {
-                const hour24 = parseInt(busiestHourEntry[0]);
-                const ampm = hour24 >= 12 ? 'PM' : 'AM';
-                let hour12 = hour24 % 12;
-                hour12 = hour12 || 12;
-                busiestHour = `${hour12} ${ampm}`;
-            }
-            
-            const clientCounts = validData.reduce((acc, row) => {
-                const clientName = row[keyMap.client];
-                if (clientName) acc[clientName] = (acc[clientName] || 0) + 1;
-                return acc;
-            }, {});
-            const topClientEntry = Object.entries(clientCounts).sort(([, a], [, b]) => b - a)[0];
-            const topClient = topClientEntry ? topClientEntry[0] : 'N/A';
+                showLoading("Reading file...");
+                updateStatus(`Reading ${file.name}...`);
 
-            document.getElementById('totalParcels').innerText = totalParcels.toLocaleString();
-            document.getElementById('rejectionRate').innerText = `${rejectionRate}%`;
-            document.getElementById('busiestHour').innerText = busiestHour;
-            document.getElementById('topClient').innerText = topClient;
-            
-            const summaryData = {};
-            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-            validData.forEach(row => {
-                const date = row.InscanTime;
-                const month = monthNames[date.getMonth()];
-                const day = `${date.getDate()}-${month}`;
-                let hour = date.getHours();
-                const ampm = hour >= 12 ? 'PM' : 'AM';
-                hour = hour % 12 || 12;
-                const hourLabel = `${hour} ${ampm}`;
-                const key = `${month}-${day}-${hourLabel}`;
-
-                if (!summaryData[key]) {
-                    summaryData[key] = { Month: month, Day: day, 'Inscan Time': hourLabel, FL1: 0, FL2: 0, HHD: 0, 'Grand Total': 0 };
-                }
-                const feedlane = row[keyMap.feedlane];
-                if (feedlane === 'FL1') summaryData[key].FL1++;
-                else if (feedlane === 'FL2') summaryData[key].FL2++;
-                else if (feedlane === 'HHD') summaryData[key].HHD++;
-                summaryData[key]['Grand Total']++;
-            });
-
-            const sortedSummary = Object.values(summaryData).sort((a,b) => new Date(a.Day.replace('-', ' ') + ' 2025 ' + a['Inscan Time'].replace(' ', '')) - new Date(b.Day.replace('-', ' ') + ' 2025 ' + b['Inscan Time'].replace(' ', '')));
-            
-            const tableBody = document.getElementById('summaryTableBody');
-            tableBody.innerHTML = '';
-            let lastDay = '';
-            sortedSummary.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-800/60';
-                let dayCell = row.Day;
-                if (dayCell === lastDay) { dayCell = ''; } else { lastDay = dayCell; }
-                tr.innerHTML = `
-                    <td class="p-3">${dayCell ? row.Month : ''}</td><td class="p-3 font-medium text-white">${dayCell}</td>
-                    <td class="p-3">${row['Inscan Time']}</td><td class="p-3 text-center">${row.FL1}</td>
-                    <td class="p-3 text-center">${row.FL2}</td><td class="p-3 text-center">${row.HHD}</td>
-                    <td class="p-3 text-center font-bold text-indigo-300">${row['Grand Total']}</td>`;
-                tableBody.appendChild(tr);
-            });
-            
-            const chartDefaultOptions = {
-                maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#e5e7eb', font: { size: 14 } } } },
-                scales: { 
-                    x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.1)' } }, 
-                    y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.1)' } } 
-                }
-            };
-
-            const pieConfig = {
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#e5e7eb', font: { size: 14 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.label || '';
-                                if (label) { label += ': '; }
-                                if (context.parsed !== null) {
-                                    const total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                                    const percentage = ((context.parsed / total) * 100).toFixed(2) + '%';
-                                    label += `${context.raw.toLocaleString()} (${percentage})`;
-                                }
-                                return label;
+                // Use setTimeout to ensure UI updates before heavy lifting
+                setTimeout(() => {
+                    if (fileName.endsWith('.csv')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) { processCSV(e.target.result); };
+                        reader.onerror = function() { hideLoading(); showToast("Failed to read file", 'error'); };
+                        reader.readAsText(file);
+                    } 
+                    else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            try {
+                                showLoading("Parsing Excel data...");
+                                const data = new Uint8Array(e.target.result);
+                                const workbook = XLSX.read(data, {type: 'array'});
+                                
+                                if (!workbook.SheetNames.length) throw new Error("Excel file has no sheets");
+                                const firstSheetName = workbook.SheetNames[0];
+                                const worksheet = workbook.Sheets[firstSheetName];
+                                
+                                showLoading("Converting to readable format...");
+                                const csvOutput = XLSX.utils.sheet_to_csv(worksheet, {
+                                    FS: ",",
+                                    RS: "\n",
+                                    dateNF: 'dd-mm-yyyy hh:mm'
+                                });
+                                processCSV(csvOutput);
+                            } catch (err) {
+                                console.error(err);
+                                hideLoading();
+                                showToast("Error reading Excel file.", 'error');
+                                updateStatus("Failed to process Excel file.", true);
                             }
+                        };
+                        reader.readAsArrayBuffer(file);
+                    } else {
+                        hideLoading();
+                        showToast("Invalid file type.", 'error');
+                        updateStatus("Invalid file type.", true);
+                    }
+                }, 100);
+            }
+        }
+
+        // Helper: Calculate Mode
+        function calculateMode(numbers) {
+            if (numbers.length === 0) return 0;
+            const counts = {};
+            let maxFreq = 0;
+            let mode = numbers[0];
+            
+            for (const n of numbers) {
+                counts[n] = (counts[n] || 0) + 1;
+                if (counts[n] > maxFreq) {
+                    maxFreq = counts[n];
+                    mode = n;
+                }
+            }
+            return mode;
+        }
+
+        // Demo Data
+        function loadDemoData() {
+            showLoading("Generating demo data...");
+            setTimeout(() => {
+                let csvContent = "Parcel Waybill Number,Inscan Time,Feedlane,Is Rejected\n";
+                const feedlanes = ['FL1', 'FL2', 'HHD'];
+                const statuses = ['Sorted', 'Sorted', 'Sorted', 'Sorted', 'Rejected']; // 20% Rejection rate simulation
+                const today = new Date();
+                
+                for(let d=0; d<2; d++) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - d);
+                    const dayStr = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth()+1).padStart(2, '0')}-${date.getFullYear()}`;
+                    
+                    for (let h=0; h<24; h++) {
+                        let baseVol = 0;
+                        if(h >= 18 && h <= 22) baseVol = 150;
+                        else if (h >= 9 && h <= 17) baseVol = 50;
+                        else baseVol = 5;
+                        
+                        // Add some randomness so mode isn't obvious 0
+                        const count = Math.floor(Math.random() * 50) + baseVol;
+                        
+                        for(let i=0; i<count; i++) {
+                            const min = Math.floor(Math.random() * 60);
+                            const lane = feedlanes[Math.floor(Math.random() * feedlanes.length)];
+                            const status = statuses[Math.floor(Math.random() * statuses.length)];
+                            csvContent += `WBN${Math.random().toString(36).substring(7)},${dayStr} ${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')},${lane},${status}\n`;
                         }
                     }
                 }
-            };
-
-            const hourlyLabels = Object.keys(hourlyCounts).sort((a,b) => parseInt(a) - parseInt(b)).map(h => `${h}:00`);
-            const hourlyData = Object.keys(hourlyCounts).sort((a,b) => parseInt(a) - parseInt(b)).map(h => hourlyCounts[h]);
-            renderChart('hourlyThroughputChart', 'bar', hourlyLabels, hourlyData, 'Total Parcels', createGradient(['#818cf8', '#a78bfa']), chartDefaultOptions);
-
-            const feedlaneCounts = validData.reduce((acc, row) => {
-                const feedlaneName = row[keyMap.feedlane];
-                if (feedlaneName) acc[feedlaneName] = (acc[feedlaneName] || 0) + 1;
-                return acc;
-            }, {});
-            renderChart('feedlaneChart', 'doughnut', Object.keys(feedlaneCounts), Object.values(feedlaneCounts), 'Feedlanes', ['#6366f1', '#ec4899', '#f97316'], pieConfig);
-
-            const rejectionReasons = validData.filter(r => r[keyMap.isRejected] && r[keyMap.isRejected].toString().trim().toLowerCase() === 'rejected' && r[keyMap.reason]).reduce((acc, row) => {
-                const reason = row[keyMap.reason]; acc[reason] = (acc[reason] || 0) + 1; return acc;
-            }, {});
-            const sortedRejections = Object.entries(rejectionReasons).sort(([, a], [, b]) => b - a).slice(0, 10);
-            renderChart('rejectionChart', 'pie', sortedRejections.map(e => e[0]), sortedRejections.map(e => e[1]), 'Rejections', ['#f43f5e', '#f97316', '#f59e0b', '#ec4899', '#d946ef', '#a855f7', '#6366f1'], pieConfig);
-
-            const sortedClients = Object.entries(clientCounts).sort(([, a], [, b]) => b - a).slice(0, 10);
-            renderChart('clientChart', 'bar', sortedClients.map(e => e[0]), sortedClients.map(e => e[1]), 'Parcels', createGradient(['#34d399', '#10b981']), chartDefaultOptions);
-        }
-        
-        function createGradient(colors) {
-            const ctx = document.createElement('canvas').getContext('2d');
-            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-            gradient.addColorStop(0, colors[0]);
-            gradient.addColorStop(1, colors[1]);
-            return gradient;
+                processCSV(csvContent);
+            }, 500);
         }
 
-        function renderChart(canvasId, type, labels, data, label, backgroundColor, options) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            if (charts[canvasId]) { charts[canvasId].destroy(); }
-            charts[canvasId] = new Chart(ctx, {
-                type: type,
-                data: { labels, datasets: [{ label, data, backgroundColor, borderColor: '#1f2937', borderWidth: 2 }] },
-                options: options
+        function processCSV(csvText) {
+            showLoading("Analyzing Data...");
+            
+            setTimeout(() => {
+                try {
+                    const rows = csvText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+                    if (rows.length < 2) {
+                        hideLoading();
+                        showToast("File is empty.", 'error');
+                        return;
+                    }
+
+                    // Smart Header Detection
+                    let headerIdx = -1;
+                    let delimiter = ',';
+
+                    for(let i = 0; i < Math.min(rows.length, 20); i++) {
+                        const rowLower = rows[i].toLowerCase();
+                        if (rowLower.includes('inscan') && (rowLower.includes('feedlane') || rowLower.includes('feed') || rowLower.includes('lane'))) {
+                            headerIdx = i;
+                            if ((rows[i].match(/;/g) || []).length > (rows[i].match(/,/g) || []).length) delimiter = ';';
+                            else if ((rows[i].match(/\t/g) || []).length > (rows[i].match(/,/g) || []).length) delimiter = '\t';
+                            break;
+                        }
+                    }
+
+                    if (headerIdx === -1) {
+                        console.warn("Could not find headers in first 20 rows, guessing row 2");
+                        headerIdx = rows.length > 1 ? 1 : 0;
+                    }
+
+                    const headerRowStr = rows[headerIdx];
+                    const headers = headerRowStr.split(delimiter).map(h => h.toLowerCase().trim().replace(/^"|"$/g, ''));
+                    
+                    const timeIdx = headers.findIndex(h => h.includes('inscan') || h.includes('time'));
+                    const laneIdx = headers.findIndex(h => h.includes('feedlane') || h.includes('feed') || h.includes('lane'));
+                    const rejIdx = headers.findIndex(h => h.includes('rejected') || h.includes('status')); 
+                    
+                    if (timeIdx === -1 || laneIdx === -1) {
+                        hideLoading();
+                        showToast("Missing 'Inscan Time' or 'Feedlane' columns.", 'error');
+                        updateStatus(`Missing columns. Detected: ${headers.join(', ')}`, true);
+                        return;
+                    }
+
+                    // Data Structure
+                    const processedData = {};
+                    let grandTotal = 0;
+                    let grandTotalRej = 0;
+
+                    for (let i = headerIdx + 1; i < rows.length; i++) {
+                        let cols = rows[i].split(delimiter);
+                        if (cols.length <= timeIdx) continue;
+
+                        const timeStr = cols[timeIdx].trim().replace(/^"|"$/g, '');
+                        const dateMatch = timeStr.match(/(\d{1,4})[-\/.](\d{1,2})[-\/.](\d{1,4})\s+(\d{1,2}):(\d{1,2})/);
+
+                        if (dateMatch) {
+                            let p1 = parseInt(dateMatch[1]), p2 = parseInt(dateMatch[2]), p3 = parseInt(dateMatch[3]);
+                            const hour = parseInt(dateMatch[4]);
+                            let d, m, y;
+                            
+                            if (p1 > 31) { y = p1; m = p2; d = p3; } 
+                            else { d = p1; m = p2; y = p3; } 
+                            if (y < 100) y += 2000;
+
+                            const dateKey = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+                            
+                            let rawLane = cols[laneIdx] ? cols[laneIdx].trim().replace(/^"|"$/g, '').toUpperCase() : 'UNKNOWN';
+                            let lane = 'UNKNOWN';
+                            if (rawLane.includes('FL1')) lane = 'FL1';
+                            else if (rawLane.includes('FL2')) lane = 'FL2';
+                            else if (rawLane.includes('HHD')) lane = 'HHD';
+
+                            let isRejected = false;
+                            if (rejIdx !== -1 && cols[rejIdx]) {
+                                const status = cols[rejIdx].toLowerCase().trim().replace(/^"|"$/g, '');
+                                if (status === 'rejected') isRejected = true;
+                            }
+
+                            if (!processedData[dateKey]) {
+                                processedData[dateKey] = {};
+                                for(let hr=0; hr<24; hr++) processedData[dateKey][hr] = { 
+                                    FL1: { total: 0, rej: 0 }, 
+                                    FL2: { total: 0, rej: 0 }, 
+                                    HHD: { total: 0, rej: 0 } 
+                                };
+                            }
+
+                            if (processedData[dateKey][hour]) {
+                                if (lane !== 'UNKNOWN') {
+                                    processedData[dateKey][hour][lane].total++;
+                                    if(isRejected) {
+                                        processedData[dateKey][hour][lane].rej++;
+                                        grandTotalRej++;
+                                    }
+                                }
+                                grandTotal++;
+                            }
+                        }
+                    }
+
+                    if (grandTotal === 0) {
+                        hideLoading();
+                        showToast("No valid data rows found.", 'error');
+                        return;
+                    }
+
+                    renderDashboard(processedData, grandTotal, grandTotalRej);
+                    hideLoading();
+                    showToast("Report processed!", 'success');
+                } catch (error) {
+                    console.error("Processing Error:", error);
+                    hideLoading();
+                    showToast("Error: " + error.message, 'error');
+                }
+            }, 100);
+        }
+
+        function renderDashboard(data, grandTotal, grandTotalRej) {
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+
+            globalProcessedData = data;
+            globalSortedDates = Object.keys(data).sort((a,b) => {
+                const [da, ma, ya] = a.split('/');
+                const [db, mb, yb] = b.split('/');
+                return new Date(`${ya}-${ma}-${da}`) - new Date(`${yb}-${mb}-${db}`);
             });
+
+            // 1. Calculate Mode
+            const allHourlyTotals = [];
+            globalSortedDates.forEach(date => {
+                for(let h=0; h<24; h++) {
+                    const row = data[date][h];
+                    const total = row.FL1.total + row.FL2.total + row.HHD.total;
+                    if(total > 0) allHourlyTotals.push(total);
+                }
+            });
+            const modeVal = calculateMode(allHourlyTotals);
+
+            // 2. Update KPI Cards
+            document.getElementById('total-scans').innerText = grandTotal.toLocaleString();
+            document.getElementById('total-rejected').innerText = grandTotalRej.toLocaleString();
+            document.getElementById('mode-rate').innerText = modeVal;
+
+            let maxVol = -1;
+            let peakTimeStr = "--:--";
+            const chartLabels = [];
+            const chartData = [];
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            // 3. Render Table
+            globalSortedDates.forEach(date => {
+                for(let h=0; h<24; h++) {
+                    const rowData = data[date][h];
+                    const totalVol = rowData.FL1.total + rowData.FL2.total + rowData.HHD.total;
+                    
+                    if (totalVol > maxVol) {
+                        maxVol = totalVol;
+                        peakTimeStr = `${date} ${String(h).padStart(2,'0')}:00`;
+                    }
+
+                    // Chart Data: Only push if Total > 0 (Active Hours Only)
+                    if (totalVol > 0) {
+                        chartLabels.push(`${date.substring(0,5)} ${h}:00`);
+                        chartData.push(totalVol);
+                    }
+
+                    const tr = document.createElement('tr');
+                    
+                    // Mode Color Logic
+                    let bgClass = "bg-white";
+                    let textClass = "text-slate-600";
+                    if(totalVol < modeVal) {
+                        bgClass = "bg-red-50"; 
+                        textClass = "text-red-700 font-semibold";
+                    } else {
+                        bgClass = "bg-green-50"; 
+                        textClass = "text-green-700 font-semibold";
+                    }
+
+                    // Zero Handling Logic for background? 
+                    // Usually 0 is less than Mode (assuming mode > 0), so it will be red. 
+                    // If mode is 0 (unlikely for active data), then green.
+                    
+                    const nextHour = h === 23 ? '00' : String(h+1).padStart(2,'0');
+                    const timeRange = `${String(h).padStart(2,'0')}:00 - ${nextHour}:00`;
+                    const nidoScanned = rowData.FL1.total + rowData.FL2.total;
+
+                    const renderCell = (laneObj) => {
+                        const count = laneObj.total;
+                        const rej = laneObj.rej;
+                        const mainText = count > 0 ? `<span class="font-medium text-blue-600">${count}</span>` : `<span class="text-slate-300">-</span>`;
+                        const subText = rej > 0 ? `<span class="ml-1 text-[10px] text-red-500 font-bold">(${rej})</span>` : ``;
+                        return `${mainText}${subText}`;
+                    };
+
+                    tr.innerHTML = `
+                        <td class="p-4 text-sm text-slate-500 font-medium border-b border-slate-100">${date}</td>
+                        <td class="p-4 text-sm text-slate-800 border-b border-slate-100 font-mono">${timeRange}</td>
+                        <td class="p-3 text-sm text-center border-b border-slate-100">${renderCell(rowData.FL1)}</td>
+                        <td class="p-3 text-sm text-center border-b border-slate-100">${renderCell(rowData.FL2)}</td>
+                        <td class="p-3 text-sm text-center border-b border-slate-100">${renderCell(rowData.HHD)}</td>
+                        <td class="p-4 text-sm text-right border-b border-slate-100 font-bold text-indigo-700 bg-indigo-50/10">${nidoScanned}</td>
+                        <td class="p-4 text-sm text-right border-b border-slate-100 ${bgClass} ${textClass}">${totalVol}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            if (peakTimeStr !== "--:--") {
+                const hourPart = parseInt(peakTimeStr.split(' ')[1]);
+                document.getElementById('peak-hour-time').innerText = String(hourPart).padStart(2,'0') + ":00 - " + String(hourPart+1).padStart(2,'0') + ":00";
+            }
+            document.getElementById('peak-hour-vol').innerText = maxVol + " parcels";
+
+            renderCharts(chartLabels, chartData);
+        }
+
+        // Modified: Only renders Hourly Chart
+        function renderCharts(labels, volumeData) {
+            if(chartInstances.hourly) chartInstances.hourly.destroy();
+            
+            const ctx1 = document.getElementById('hourlyChart').getContext('2d');
+            const gradient = ctx1.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+            chartInstances.hourly = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Incoming',
+                        data: volumeData,
+                        borderColor: '#2563eb',
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { borderDash: [2, 2] } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } } }
+                }
+            });
+        }
+
+        // Export remains unchanged
+        function exportReportToExcel() {
+            if (!globalProcessedData || !globalSortedDates) return;
+            const mainSheetData = [["Date", "Hour", "FL1", "FL2", "HHD", "NIDO Scanned", "Total"]];
+            const rejSheetData = [["Date", "Hour", "FL1 Rejected", "FL2 Rejected", "HHD Rejected", "Total Rejected"]];
+
+            globalSortedDates.forEach(date => {
+                for(let h=0; h<24; h++) {
+                    const d = globalProcessedData[date][h];
+                    const nextHour = h === 23 ? '00' : String(h+1).padStart(2,'0');
+                    const timeRange = `${String(h).padStart(2,'0')}:00 - ${nextHour}:00`;
+                    const nido = d.FL1.total + d.FL2.total;
+                    const total = d.FL1.total + d.FL2.total + d.HHD.total;
+                    const totalRej = d.FL1.rej + d.FL2.rej + d.HHD.rej;
+
+                    mainSheetData.push([date, timeRange, d.FL1.total, d.FL2.total, d.HHD.total, nido, total]);
+                    rejSheetData.push([date, timeRange, d.FL1.rej, d.FL2.rej, d.HHD.rej, totalRej]);
+                }
+            });
+
+            const wb = XLSX.utils.book_new();
+            const wsMain = XLSX.utils.aoa_to_sheet(mainSheetData);
+            XLSX.utils.book_append_sheet(wb, wsMain, "Sorting Data");
+            const wsRej = XLSX.utils.aoa_to_sheet(rejSheetData);
+            XLSX.utils.book_append_sheet(wb, wsRej, "Rejections");
+            XLSX.writeFile(wb, "NIDO_Analytics_Report.xlsx");
         }
     </script>
 </body>
 </html>
-
